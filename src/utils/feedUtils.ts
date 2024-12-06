@@ -11,55 +11,66 @@ const parser = new Parser({
   },
 });
 
-// Use a CORS proxy
-const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+// Array of CORS proxies to use as fallbacks
+const CORS_PROXIES = [
+  'https://api.allorigins.win/raw?url=',
+  'https://cors-anywhere.herokuapp.com/',
+  'https://cors-proxy.htmldriven.com/?url=',
+];
 
-export async function parseFeed(url: string): Promise<Feed | null> {
-  try {
-    console.log('Fetching feed from URL:', url); // Debug log
+// Add delay between requests
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-    // Use CORS proxy to fetch the feed
-    const proxyUrl = `${CORS_PROXY}${encodeURIComponent(url)}`;
-    console.log('Proxy URL:', proxyUrl); // Debug log
+export async function parseFeed(url: string) {
+  let lastError = null;
 
-    const response = await axios.get(proxyUrl, {
-      headers: {
-        'Accept': 'application/rss+xml, application/xml, text/xml, application/atom+xml',
-      },
-      timeout: 10000, // 10 second timeout
-    });
+  // Try each proxy in sequence
+  for (const proxy of CORS_PROXIES) {
+    try {
+      console.log(`Attempting to fetch feed with proxy: ${proxy}`);
+      
+      // Add delay between attempts
+      await delay(1000);
 
-    console.log('Feed response status:', response.status); // Debug log
+      const proxyUrl = `${proxy}${encodeURIComponent(url)}`;
+      const response = await axios.get(proxyUrl, {
+        headers: {
+          'Accept': 'application/rss+xml, application/xml, text/xml, application/atom+xml',
+        },
+        timeout: 10000,
+      });
 
-    if (!response.data) {
-      throw new Error('No data received from feed');
+      if (!response.data) {
+        throw new Error('No data received from feed');
+      }
+
+      const feed = await parser.parseString(response.data);
+      
+      return {
+        url,
+        title: feed.title || 'Untitled Feed',
+        description: feed.description,
+        items: (feed.items || []).map(item => ({
+          title: item.title || 'Untitled',
+          link: item.link || '',
+          pubDate: item.pubDate || new Date().toISOString(),
+          content: item.content || item.description,
+          author: item.creator || item.author,
+          description: item.description
+        })),
+        lastUpdated: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error(`Failed to fetch with proxy ${proxy}:`, error);
+      lastError = error;
+      continue; // Try next proxy
     }
-
-    // Parse the feed content
-    const feed = await parser.parseString(response.data);
-    console.log('Parsed feed title:', feed.title); // Debug log
-    
-    return {
-      url,
-      title: feed.title || 'Untitled Feed',
-      description: feed.description,
-      items: feed.items.map(item => ({
-        title: item.title || 'Untitled',
-        link: item.link || '',
-        pubDate: item.pubDate || new Date().toISOString(),
-        content: item.content || item.description,
-        author: item.creator || item.author,
-        description: item.description
-      })),
-      lastUpdated: new Date().toISOString()
-    };
-  } catch (error) {
-    console.error('Detailed feed parsing error:', {
-      error,
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      url
-    });
-    throw error; // Re-throw to handle in the API route
   }
+
+  // If all proxies failed, throw the last error
+  throw new Error(
+    lastError instanceof Error 
+      ? `Feed fetch failed: ${lastError.message}`
+      : 'Failed to fetch feed from all available proxies'
+  );
 }

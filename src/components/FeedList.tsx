@@ -1,10 +1,10 @@
 // src/components/FeedList.tsx
 'use client';
 
-import { Feed, FeedItem } from '@/types/feed';
+import { Feed } from '@/types/feed';
 import { format } from 'date-fns';
-import DOMPurify from 'dompurify';
 import Link from 'next/link';
+import DOMPurify from 'dompurify';
 
 interface FeedListProps {
   feeds: Feed[];
@@ -26,10 +26,6 @@ export function FeedList({ feeds, onRemove, itemsPerFeed = 3 }: FeedListProps) {
     return [...items]
       .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime())
       .slice(0, itemsPerFeed);
-  };
-
-  const isHackerNewsFeed = (url: string) => {
-    return url.includes('hnrss.org');
   };
 
   return (
@@ -91,73 +87,29 @@ export function FeedList({ feeds, onRemove, itemsPerFeed = 3 }: FeedListProps) {
                     )}
                   </div>
 
-                  {isHackerNewsFeed(feed.url) ? (
-                    renderHackerNewsContent(item)
-                  ) : (
-                    item.description && (
-                      <div 
-                        className="text-gray-600 prose prose-sm max-w-none"
-                        dangerouslySetInnerHTML={{
-                          __html: DOMPurify.sanitize(item.description)
-                        }}
-                      />
-                    )
+                  {item.description && (
+                    <div 
+                      className="text-gray-600 prose prose-sm max-w-none"
+                      dangerouslySetInnerHTML={{
+                        __html: DOMPurify.sanitize(item.description)
+                      }}
+                    />
                   )}
                 </div>
               </article>
             ))}
-            <div className="p-4 bg-gray-50">
-              <Link
-                href={`/feed/${encodeURIComponent(feed.url)}`}
-                className="text-blue-600 hover:text-blue-800 font-medium text-sm"
-              >
-                View all articles →
-              </Link>
-            </div>
+          </div>
+
+          <div className="p-4 bg-gray-50">
+            <Link
+              href={`/feed/${encodeURIComponent(feed.url)}`}
+              className="text-blue-600 hover:text-blue-800 font-medium text-sm"
+            >
+              View all articles →
+            </Link>
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-// Helper function for Hacker News content
-function renderHackerNewsContent(item: FeedItem) {
-  const mainUrlMatch = item.content?.match(/Article URL: <a href="([^"]+)">/);
-  const commentsUrlMatch = item.content?.match(/Comments URL: <a href="([^"]+)">/);
-  const pointsMatch = item.content?.match(/Points: (\d+)/);
-  const commentsMatch = item.content?.match(/# Comments: (\d+)/);
-
-  const mainUrl = mainUrlMatch?.[1];
-  const commentsUrl = commentsUrlMatch?.[1];
-  const points = pointsMatch?.[1];
-  const commentCount = commentsMatch?.[1];
-
-  return (
-    <div className="space-y-2">
-      <div className="text-sm text-gray-600">
-        {points && <span className="mr-3 font-medium">{points} points</span>}
-        {commentCount && (
-          <a 
-            href={commentsUrl} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800 font-medium"
-          >
-            {commentCount} comments
-          </a>
-        )}
-      </div>
-      {mainUrl && (
-        <a 
-          href={mainUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-600 hover:text-blue-800 font-medium inline-block"
-        >
-          Read article →
-        </a>
-      )}
     </div>
   );
 }
